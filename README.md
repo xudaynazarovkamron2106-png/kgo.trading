@@ -1,0 +1,2 @@
+# GeminGPT
+GeminGPT is ai 
