@@ -5,120 +5,94 @@ import numpy as np
 from datetime import datetime
 import time
 
-# --- [1. MT5 PROFESSIONAL INTERFACE CONFIG] ---
-st.set_page_config(page_title="MetaTrader 5 - KGO Edition", layout="wide", page_icon="💹")
+# --- [1. MT5 PROFESSIONAL DARK DESIGN] ---
+st.set_page_config(page_title="MT5 LIVE - KGO", layout="wide")
 
-# MT5 Dark Theme Style
 st.markdown("""
 <style>
-    .stApp { background-color: #1c1c1c; color: #ffffff; }
-    header {visibility: hidden;}
-    .main-header { font-size: 24px; font-weight: bold; color: #f0f0f0; border-bottom: 1px solid #444; padding: 10px; margin-bottom: 20px; }
-    .mt5-sidebar { background-color: #2b2b2b; padding: 15px; border-right: 1px solid #444; }
-    .stButton>button { width: 100%; border-radius: 2px; font-weight: bold; height: 50px; border: none; }
-    div[data-testid="stMetricValue"] { color: #00ff00; font-size: 20px; }
-    /* MT5 BUY/SELL Buttons */
-    .buy-btn { background-color: #2e7d32 !important; color: white !important; }
-    .sell-btn { background-color: #c62828 !important; color: white !important; }
+    .stApp { background-color: #000000; color: #ffffff; }
+    .price-up { color: #00ff00; font-weight: bold; font-size: 24px; }
+    .price-down { color: #ff0000; font-weight: bold; font-size: 24px; }
+    .stButton>button { border-radius: 5px; height: 50px; font-size: 18px; font-weight: bold; }
+    /* Terminal stili */
+    .terminal { background-color: #1a1a1a; border-top: 2px solid #333; padding: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- [2. STATE MANAGEMENT (REAL-TIME DATA)] ---
-if 'price_history' not in st.session_state:
-    st.session_state.price_history = pd.DataFrame({
-        'Date': pd.date_range(end=datetime.now(), periods=100, freq='1min'),
-        'Open': np.random.uniform(65000, 66000, 100),
-        'High': np.random.uniform(66000, 67000, 100),
-        'Low': np.random.uniform(64000, 65000, 100),
-        'Close': np.random.uniform(65000, 66000, 100)
+# --- [2. DATA STORAGE] ---
+if 'history' not in st.session_state:
+    # Boshlang'ich 50 ta shamcha
+    st.session_state.history = pd.DataFrame({
+        'Time': pd.date_range(end=datetime.now(), periods=50, freq='S'),
+        'Open': np.random.uniform(65000, 65100, 50),
+        'High': np.random.uniform(65100, 65200, 50),
+        'Low': np.random.uniform(64900, 65000, 50),
+        'Close': np.random.uniform(65000, 65100, 50)
     })
 if 'balance' not in st.session_state:
     st.session_state.balance = 10000.0
-if 'positions' not in st.session_state:
-    st.session_state.positions = []
 
-# --- [3. REAL-TIME PRICE UPDATE] ---
-def update_price():
-    last_price = st.session_state.price_history.iloc[-1]['Close']
-    change = np.random.uniform(-100, 100)
-    new_price = last_price + change
-    new_row = {
-        'Date': datetime.now(),
-        'Open': last_price,
-        'High': new_price + 50,
-        'Low': new_price - 50,
-        'Close': new_price
-    }
-    st.session_state.price_history = pd.concat([st.session_state.price_history, pd.DataFrame([new_row])], ignore_index=True).iloc[1:]
+# --- [3. LIVE UPDATE LOGIC] ---
+# Oxirgi narxni olish va yangi narx yaratish
+last_row = st.session_state.history.iloc[-1]
+change = np.random.uniform(-50, 50)
+new_close = last_row['Close'] + change
 
-update_price()
-current_data = st.session_state.price_history.iloc[-1]
+new_data = pd.DataFrame([{
+    'Time': datetime.now(),
+    'Open': last_row['Close'],
+    'High': max(last_row['Close'], new_close) + 10,
+    'Low': min(last_row['Close'], new_close) - 10,
+    'Close': new_close
+}])
 
-# --- [4. LAYOUT: MT5 STRUCTURE] ---
-# Top Bar
-st.markdown('<div class="main-header">MetaTrader 5 - KGO GLOBAL (Real-Time)</div>', unsafe_allow_html=True)
+st.session_state.history = pd.concat([st.session_state.history, new_data], ignore_index=True).iloc[1:]
 
-col_sidebar, col_chart, col_orders = st.columns([1, 4, 1])
+# --- [4. INTERFACE] ---
+st.title("💹 KGO GLOBAL - MetaTrader 5 LIVE")
 
-with col_sidebar:
-    st.markdown("### Market Watch")
-    st.metric("BTCUSD", f"${current_data['Close']:.2f}", f"{np.random.uniform(-1, 1):.2f}%")
-    st.metric("ETHUSD", f"${current_data['Close']/20:.2f}", "-0.15%")
-    st.metric("GOLD", "$2,350.10", "+0.45%")
+col_main, col_side = st.columns([4, 1])
+
+with col_side:
+    st.write("### Savdo Paneli")
+    price_style = "price-up" if change > 0 else "price-down"
+    st.markdown(f"BTC/USDT: <span class='{price_style}'>${new_close:.2f}</span>", unsafe_allow_html=True)
     
-    st.divider()
-    st.write(f"💰 Balance: **${st.session_state.balance:,.2f}**")
-    lot_size = st.number_input("Lots:", value=0.1, step=0.1)
-
-with col_chart:
-    # Professional Candlestick Chart
-    fig = go.Figure(data=[go.Candlestick(
-        x=st.session_state.price_history['Date'],
-        open=st.session_state.price_history['Open'],
-        high=st.session_state.price_history['High'],
-        low=st.session_state.price_history['Low'],
-        close=st.session_state.price_history['Close'],
-        increasing_line_color='#26a69a', decreasing_line_color='#ef5350',
-        increasing_fillcolor='#26a69a', decreasing_fillcolor='#ef5350'
-    )])
+    st.write(f"Balans: **${st.session_state.balance:,.2f}**")
     
-    fig.update_layout(
-        template="plotly_dark",
-        margin=dict(l=10, r=10, t=10, b=10),
-        height=500,
-        xaxis_rangeslider_visible=False,
-        plot_bgcolor="#1c1c1c",
-        paper_bgcolor="#1c1c1c"
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Bottom Terminal (Positions)
-    st.markdown("### Toolbox (Trade History)")
-    if st.session_state.positions:
-        st.table(pd.DataFrame(st.session_state.positions))
-    else:
-        st.info("No active positions.")
-
-with col_orders:
-    st.markdown("### New Order")
-    if st.button("🔴 SELL", type="primary", use_container_width=True):
-        st.session_state.positions.append({"Type": "SELL", "Price": current_data['Close'], "Lot": lot_size, "Time": datetime.now().strftime("%H:%M:%S")})
-        st.toast(f"Sell Order Placed at {current_data['Close']:.2f}")
-    
-    st.write("") # Spacer
+    lot = st.number_input("Lot:", 0.01, 10.0, 0.1)
     
     if st.button("🟢 BUY", use_container_width=True):
-        st.session_state.positions.append({"Type": "BUY", "Price": current_data['Close'], "Lot": lot_size, "Time": datetime.now().strftime("%H:%M:%S")})
-        st.toast(f"Buy Order Placed at {current_data['Close']:.2f}")
+        st.toast("Buy Order Open!")
+    if st.button("🔴 SELL", use_container_width=True):
+        st.toast("Sell Order Open!")
+    
+    st.info("Bozor holati: Ochiq")
 
-    st.divider()
-    st.markdown("**Account Summary**")
-    st.write(f"Equity: {st.session_state.balance}")
-    st.write(f"Margin: {lot_size * 500}")
+with col_main:
+    # Professional LIVE Grafik
+    fig = go.Figure(data=[go.Candlestick(
+        x=st.session_state.history['Time'],
+        open=st.session_state.history['Open'],
+        high=st.session_state.history['High'],
+        low=st.session_state.history['Low'],
+        close=st.session_state.history['Close'],
+        increasing_line_color='#00ff00', # Yashil tepaga
+        decreasing_line_color='#ff0000'  # Qizil pastga
+    )])
 
-# Auto-refresh using Streamlit's fragment-like behavior (Simulated with button for stability)
-if st.button("🔄 REFRESH MARKET"):
-    st.rerun()
+    fig.update_layout(
+        template="plotly_dark",
+        xaxis_rangeslider_visible=False,
+        height=500,
+        margin=dict(l=10, r=10, t=10, b=10),
+        plot_bgcolor='#000000',
+        paper_bgcolor='#000000'
+    )
+    
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-st.sidebar.markdown("---")
-st.sidebar.info("MT5 Mode: Active. Trading server: KGO-LONDON")
+# --- [5. AVTOMATIK YANGILASH (LIVE)] ---
+# Bu qism saytni o'zi avtomat yangilashga majbur qiladi
+time.sleep(1) # Har 1 soniyada yangilanadi
+st.rerun()
