@@ -5,112 +5,107 @@ import numpy as np
 from datetime import datetime, timedelta
 
 # ==========================================
-# 1. MT5 CLASSIC INTERFACE (GRAY & BLACK)
+# 1. MT5 CLASSIC DESIGN
 # ==========================================
-st.set_page_config(page_title="MetaTrader 5 - Terminal", layout="wide")
+st.set_page_config(page_title="MetaTrader 5 Terminal", layout="wide")
 
-# MT5 ning klassik kulrang va to'q rangli stili
 st.markdown("""
 <style>
-    .stApp { background-color: #2b2b2b; color: #e0e0e0; }
-    .mt5-header { background-color: #3c3c3c; padding: 5px; border-bottom: 1px solid #1a1a1a; font-size: 14px; }
-    .market-watch { background-color: #1e1e1e; border-right: 1px solid #1a1a1a; height: 800px; padding: 10px; }
-    .terminal-box { background-color: #1e1e1e; border-top: 2px solid #1a1a1a; height: 200px; padding: 10px; font-family: sans-serif; font-size: 12px; }
-    .stButton>button { border-radius: 0px; background-color: #4a4a4a; color: white; border: 1px solid #1a1a1a; height: 30px; font-size: 12px; }
-    .buy-btn { background-color: #2e7d32 !important; }
-    .sell-btn { background-color: #c62828 !important; }
+    .stApp { background-color: #1e1e1e; color: #dcdcdc; }
+    .mt5-toolbar { background-color: #383838; padding: 5px; border-bottom: 1px solid #000; font-size: 13px; color: #fff; }
+    .market-watch { background-color: #2b2b2b; border: 1px solid #111; padding: 10px; height: 600px; }
+    .stButton>button { border-radius: 0px; background-color: #444; color: white; border: 1px solid #222; height: 35px; width: 100%; }
+    .buy-btn { background-color: #2e7d32 !important; font-weight: bold; }
+    .sell-btn { background-color: #c62828 !important; font-weight: bold; }
+    .terminal-section { background-color: #2b2b2b; border-top: 2px solid #000; padding: 10px; margin-top: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. DATA ENGINE (MT5 LOGIC)
+# 2. DATA INITIALIZATION (MT5_DF)
 # ==========================================
-if 'history' not in st.session_state:
+# O'zgaruvchi nomini mt5_df qildik, shunda eski xato chiqmaydi
+if 'mt5_df' not in st.session_state:
     st.session_state.balance = 10000.00
-    st.session_state.positions = []
-    # 21 xil vaqt oralig'i simulyatsiyasi uchun boshlang'ich ma'lumot
-    times = [datetime.now() - timedelta(minutes=i) for i in range(100)]
+    st.session_state.open_trades = []
+    
+    # Boshlang'ich shamchalar
+    start_time = datetime.now() - timedelta(hours=5)
+    times = [start_time + timedelta(minutes=i*5) for i in range(100)]
     prices = np.random.uniform(66000, 66500, 100)
-    st.session_state.history = pd.DataFrame({
-        'Time': sorted(times),
+    
+    st.session_state.mt5_df = pd.DataFrame({
+        'Time': times,
         'Open': prices,
-        'High': prices + 20,
-        'Low': prices - 20,
-        'Close': prices + 5
+        'High': prices + 25,
+        'Low': prices - 25,
+        'Close': prices + 10
     })
 
 # ==========================================
-# 3. INTERFACE LAYOUT (MT5 STRUCTURE)
+# 3. INTERFACE LAYOUT
 # ==========================================
 
-# Yuqori Toolbar (MT5 kabi)
-st.markdown('<div class="mt5-header">File | View | Insert | Charts | Tools | Window | Help</div>', unsafe_allow_html=True)
+# 1. Toolbar
+st.markdown('<div class="mt5-toolbar">File | View | Insert | Charts | Tools | Help</div>', unsafe_allow_html=True)
 
-# Asosiy 3 talik bo'lim
-col_market, col_main = st.columns([1, 4])
+col_sidebar, col_chart = st.columns([1, 4])
 
-with col_market:
+with col_sidebar:
     st.markdown("### Market Watch")
-    # MT5 kabi jadval ko'rinishidagi narxlar
-    market_data = {
-        "Symbol": ["BTCUSD", "ETHUSD", "XAUUSD", "EURUSD"],
-        "Bid": [66430.10, 3450.20, 2350.50, 1.0850],
-        "Ask": [66432.50, 3451.80, 2351.10, 1.0852]
-    }
-    st.table(pd.DataFrame(market_data))
+    # MT5 kabi jadval
+    watch_list = pd.DataFrame({
+        "Symbol": ["BTCUSD", "ETHUSD", "XAUUSD", "GBPUSD"],
+        "Bid": [66430.5, 3450.2, 2350.8, 1.2650],
+        "Ask": [66432.1, 3451.5, 2351.2, 1.2652]
+    })
+    st.table(watch_list)
     
     st.markdown("---")
-    st.markdown("### Navigator")
-    st.caption("📂 Accounts\n\n📊 Indicators\n\n🤖 Expert Advisors")
+    st.write(f"💰 **Balance:** ${st.session_state.balance:,.2f}")
+    lot = st.number_input("Lots:", 0.01, 10.0, 0.1)
+    
+    if st.button("BUY", key="buy_mt5"):
+        price = 66432.1
+        st.session_state.open_trades.append({"Time": datetime.now().strftime("%H:%M"), "Type": "Buy", "Lots": lot, "Price": price})
+        st.toast(f"Buy Order Opened: {lot} lots")
+        
+    if st.button("SELL", key="sell_mt5"):
+        price = 66430.5
+        st.session_state.open_trades.append({"Time": datetime.now().strftime("%H:%M"), "Type": "Sell", "Lots": lot, "Price": price})
+        st.toast(f"Sell Order Opened: {lot} lots")
 
-with col_main:
-    # 1. Grafik qismi
+with col_chart:
+    # Professional Candlestick Chart
     fig = go.Figure(data=[go.Candlestick(
-        x=st.session_state.history['Time'],
-        open=st.session_state.history['Open'],
-        high=st.session_state.history['High'],
-        low=st.session_state.history['Low'],
-        close=st.session_state.history['Close'],
+        x=st.session_state.mt5_df['Time'],
+        open=st.session_state.mt5_df['Open'],
+        high=st.session_state.mt5_df['High'],
+        low=st.session_state.mt5_df['Low'],
+        close=st.session_state.mt5_df['Close'],
         increasing_line_color='#26a69a', decreasing_line_color='#ef5350'
     )])
     
     fig.update_layout(
         template="plotly_dark",
-        height=500,
-        margin=dict(l=10, r=10, t=10, b=10),
+        height=550,
+        margin=dict(l=0, r=0, t=10, b=10),
         xaxis_rangeslider_visible=False,
-        plot_bgcolor='#000000',
-        paper_bgcolor='#1e1e1e',
-        yaxis=dict(side="right", gridcolor="#2a2a2a")
+        plot_bgcolor='#000',
+        paper_bgcolor='#2b2b2b',
+        yaxis=dict(side="right", gridcolor="#333")
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # 2. Savdo tugmalari (One-Click Trading)
-    t1, t2, t3 = st.columns([1, 1, 2])
-    with t1:
-        if st.button("SELL", use_container_width=True):
-            st.session_state.positions.append({"Symbol": "BTCUSD", "Type": "Sell", "Volume": 0.1, "Price": 66430.10})
-    with t2:
-        if st.button("BUY", use_container_width=True):
-            st.session_state.positions.append({"Symbol": "BTCUSD", "Type": "Buy", "Volume": 0.1, "Price": 66432.50})
-    with t3:
-        st.write(f"**Balance:** ${st.session_state.balance:,.2f}")
+# 4. Terminal (Pastki qism)
+st.markdown('<div class="terminal-section">', unsafe_allow_html=True)
+st.markdown("### Toolbox")
+if st.session_state.open_trades:
+    st.dataframe(pd.DataFrame(st.session_state.open_trades), use_container_width=True)
+else:
+    st.caption("No open positions. Trade history is empty.")
+st.markdown('</div>', unsafe_allow_html=True)
 
-    # 3. Terminal (Pastki qism)
-    st.markdown('<div class="terminal-box">', unsafe_allow_html=True)
-    st.markdown("### Toolbox")
-    tab1, tab2, tab3 = st.tabs(["Trade", "Exposure", "History"])
-    
-    with tab1:
-        if st.session_state.positions:
-            st.dataframe(pd.DataFrame(st.session_state.positions), use_container_width=True)
-        else:
-            st.caption("No open positions.")
-    
-    with tab3:
-        st.caption("No trade history.")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Avtomatik yangilash (miltillashsiz harakat uchun)
-if st.button("Refresh Terminal"):
+# Manual Refresh
+if st.button("🔄 Update Quotes"):
     st.rerun()
