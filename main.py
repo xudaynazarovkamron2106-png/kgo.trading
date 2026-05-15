@@ -2,226 +2,123 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
+import time
 
-# --- [1. CYBER-MILLIY DESIGN] ---
-st.set_page_config(page_title="KGO TRADING PRO", layout="wide", page_icon="📈")
+# --- [1. MT5 PROFESSIONAL INTERFACE CONFIG] ---
+st.set_page_config(page_title="MetaTrader 5 - KGO Edition", layout="wide", page_icon="💹")
 
+# MT5 Dark Theme Style
 st.markdown("""
 <style>
-    /* Fon va Milliy naqsh */
-    .stApp {
-        background-color: #f0f7f9;
-        background-image: url("https://www.transparenttextures.com/patterns/oriental-tiles.png");
-        color: #1a3a5a;
-    }
-    
-    /* Sarlavha dizayni */
-    .main-header {
-        text-align: center;
-        color: #0088cc;
-        font-family: 'Arial Black', sans-serif;
-        text-transform: uppercase;
-        padding: 20px;
-        border-bottom: 3px double #0088cc;
-        margin-bottom: 30px;
-    }
-
-    /* Signal Kartochkasi */
-    .signal-card {
-        background: white;
-        padding: 20px;
-        border-radius: 15px;
-        border-left: 5px solid #00c6ff;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        text-align: center;
-        margin-bottom: 20px;
-    }
-
-    /* BUY/SELL Tugmalari - Milliy uslub */
-    .stButton>button {
-        width: 100%;
-        border-radius: 30px;
-        font-weight: bold;
-        transition: 0.3s;
-    }
-    .stButton>button[key="buy_btn"] {
-        background: linear-gradient(90deg, #00e676, #00c853);
-        color: white;
-    }
-    .stButton>button[key="sell_btn"] {
-        background: linear-gradient(90deg, #ff1744, #d50000);
-        color: white;
-    }
+    .stApp { background-color: #1c1c1c; color: #ffffff; }
+    header {visibility: hidden;}
+    .main-header { font-size: 24px; font-weight: bold; color: #f0f0f0; border-bottom: 1px solid #444; padding: 10px; margin-bottom: 20px; }
+    .mt5-sidebar { background-color: #2b2b2b; padding: 15px; border-right: 1px solid #444; }
+    .stButton>button { width: 100%; border-radius: 2px; font-weight: bold; height: 50px; border: none; }
+    div[data-testid="stMetricValue"] { color: #00ff00; font-size: 20px; }
+    /* MT5 BUY/SELL Buttons */
+    .buy-btn { background-color: #2e7d32 !important; color: white !important; }
+    .sell-btn { background-color: #c62828 !important; color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- [2. VIRTUAL MA'LUMOT YARATISH (Real data yo'qligi uchun)] ---
-def generate_data(days=365):
-    np.random.seed(42)
-    dates = [datetime.now() - timedelta(days=x) for x in range(days)]
-    dates.reverse()
-    price = 60000 + np.cumsum(np.random.randn(days) * 500)
-    high = price + np.random.rand(days) * 1000
-    low = price - np.random.rand(days) * 1000
-    volume = np.random.randint(1000, 5000, days)
-    
-    data = pd.DataFrame({
-        'Date': dates,
-        'Open': price,
-        'High': high,
-        'Low': low,
-        'Close': price + np.random.randn(days) * 200,
-        'Volume': volume
+# --- [2. STATE MANAGEMENT (REAL-TIME DATA)] ---
+if 'price_history' not in st.session_state:
+    st.session_state.price_history = pd.DataFrame({
+        'Date': pd.date_range(end=datetime.now(), periods=100, freq='1min'),
+        'Open': np.random.uniform(65000, 66000, 100),
+        'High': np.random.uniform(66000, 67000, 100),
+        'Low': np.random.uniform(64000, 65000, 100),
+        'Close': np.random.uniform(65000, 66000, 100)
     })
-    return data
+if 'balance' not in st.session_state:
+    st.session_state.balance = 10000.0
+if 'positions' not in st.session_state:
+    st.session_state.positions = []
 
-# --- [3. KGO AI SIGNAL VA ZONALAR LOGIKASI] ---
-def calculate_signals(data):
-    # RSI (Relative Strength Index) - 14 kunlik
-    delta = data['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    data['RSI'] = 100 - (100 / (1 + rs))
+# --- [3. REAL-TIME PRICE UPDATE] ---
+def update_price():
+    last_price = st.session_state.price_history.iloc[-1]['Close']
+    change = np.random.uniform(-100, 100)
+    new_price = last_price + change
+    new_row = {
+        'Date': datetime.now(),
+        'Open': last_price,
+        'High': new_price + 50,
+        'Low': new_price - 50,
+        'Close': new_price
+    }
+    st.session_state.price_history = pd.concat([st.session_state.price_history, pd.DataFrame([new_row])], ignore_index=True).iloc[1:]
 
-    # Moving Average (MA) - 20 kunlik
-    data['MA20'] = data['Close'].rolling(window=20).mean()
+update_price()
+current_data = st.session_state.price_history.iloc[-1]
 
-    # KGO AI Signal
-    latest = data.iloc[-1]
-    prev = data.iloc[-2]
+# --- [4. LAYOUT: MT5 STRUCTURE] ---
+# Top Bar
+st.markdown('<div class="main-header">MetaTrader 5 - KGO GLOBAL (Real-Time)</div>', unsafe_allow_html=True)
+
+col_sidebar, col_chart, col_orders = st.columns([1, 4, 1])
+
+with col_sidebar:
+    st.markdown("### Market Watch")
+    st.metric("BTCUSD", f"${current_data['Close']:.2f}", f"{np.random.uniform(-1, 1):.2f}%")
+    st.metric("ETHUSD", f"${current_data['Close']/20:.2f}", "-0.15%")
+    st.metric("GOLD", "$2,350.10", "+0.45%")
     
-    signal = "NEUTRAL"
-    strength = "0%"
+    st.divider()
+    st.write(f"💰 Balance: **${st.session_state.balance:,.2f}**")
+    lot_size = st.number_input("Lots:", value=0.1, step=0.1)
 
-    if latest['RSI'] < 30 and latest['Close'] < latest['MA20']:
-        signal = "STRONG BUY"
-        strength = "85%"
-    elif latest['RSI'] > 70 and latest['Close'] > latest['MA20']:
-        signal = "STRONG SELL"
-        strength = "90%"
-    elif latest['MA20'] > prev['MA20'] and latest['Close'] > latest['MA20']:
-        signal = "BUY"
-        strength = "65%"
-    elif latest['MA20'] < prev['MA20'] and latest['Close'] < latest['MA20']:
-        signal = "SELL"
-        strength = "70%"
-        
-    return signal, strength, latest
-
-# --- [4. SAYT INTERFEYSI] ---
-st.markdown('<h1 class="main-header">📈 KGO TRADING ULTIMATE PRO</h1>', unsafe_allow_html=True)
-st.write("<p style='text-align:center;'>Milliy Tahlil va AI Signallar Platformasi</p>", unsafe_allow_html=True)
-
-# sidebar
-st.sidebar.markdown(f"<h2 style='color:#0072ff;'>👤 KGO Treder Junior</h2>", unsafe_allow_html=True)
-symbol = st.sidebar.selectbox("Aktiv:", ["Bitcoin (BTC/USDT)", "Ethereum (ETH/USDT)", "KGO Coin (KGO/USDT)"])
-timeframe = st.sidebar.radio("Taymfreym:", ["1 Min", "5 Min", "15 Min", "1 H", "1 D"])
-
-# Ma'lumotlarni yuklash (simulyatsiya)
-df = generate_data()
-signal, strength, latest_data = calculate_signals(df)
-
-# --- [5. GRAFIKA VA CHIZISH] ---
-# O'zbekona ranglar palitrasi
-KGO_COLORS = {
-    'bg': '#f0f7f9',
-    'buy': '#00c853', # O'zbekiston yashili
-    'sell': '#d50000', # O'zbekiston qizili
-    'ma': '#00c6ff', # O'zbekiston ko'ki
-    'grid': 'rgba(26, 58, 90, 0.05)'
-}
-
-fig = go.Figure()
-
-# Shamchalar (Candlesticks)
-fig.add_trace(go.Candlestick(
-    x=df['Date'],
-    open=df['Open'],
-    high=df['High'],
-    low=df['Low'],
-    close=df['Close'],
-    name='Narx',
-    increasing_line_color=KGO_COLORS['buy'],
-    decreasing_line_color=KGO_COLORS['sell']
-))
-
-# Moving Average Line
-fig.add_trace(go.Scatter(
-    x=df['Date'],
-    y=df['MA20'],
-    name='MA20 (KGO Zona)',
-    line=dict(color=KGO_COLORS['ma'], width=2)
-))
-
-# BUY/SELL Zonalarni chizish (Simulyatsiya)
-# Pastki zona (BUY ZONE)
-fig.add_shape(type="rect",
-    x0=df['Date'].iloc[0], y0=latest_data['Low'] * 0.98,
-    x1=df['Date'].iloc[-1], y1=latest_data['Low'] * 1.0,
-    fillcolor=KGO_COLORS['buy'], opacity=0.1, line_width=0
-)
-# Yuqori zona (SELL ZONE)
-fig.add_shape(type="rect",
-    x0=df['Date'].iloc[0], y0=latest_data['High'] * 1.0,
-    x1=df['Date'].iloc[-1], y1=latest_data['High'] * 1.02,
-    fillcolor=KGO_COLORS['sell'], opacity=0.1, line_width=0
-)
-
-# Grafik sozlamalari (Milliy dizayn)
-fig.update_layout(
-    title=f'{symbol} - KGO Tahlil Grafigi ({timeframe})',
-    xaxis_title='Vaqt',
-    yaxis_title='Narx ($)',
-    xaxis_rangeslider_visible=False,
-    paper_bgcolor=KGO_COLORS['bg'],
-    plot_bgcolor=KGO_COLORS['bg'],
-    font=dict(color='#1a3a5a'),
-    xaxis=dict(gridcolor=KGO_COLORS['grid']),
-    yaxis=dict(gridcolor=KGO_COLORS['grid']),
-    margin=dict(l=0, r=0, t=40, b=0),
-    height=600
-)
-
-# --- [6. ASOSIY BLOK: SIGNAL VA BOSHQARUV] ---
-col1, col2 = st.columns([3, 1])
-
-with col1:
+with col_chart:
+    # Professional Candlestick Chart
+    fig = go.Figure(data=[go.Candlestick(
+        x=st.session_state.price_history['Date'],
+        open=st.session_state.price_history['Open'],
+        high=st.session_state.price_history['High'],
+        low=st.session_state.price_history['Low'],
+        close=st.session_state.price_history['Close'],
+        increasing_line_color='#26a69a', decreasing_line_color='#ef5350',
+        increasing_fillcolor='#26a69a', decreasing_fillcolor='#ef5350'
+    )])
+    
+    fig.update_layout(
+        template="plotly_dark",
+        margin=dict(l=10, r=10, t=10, b=10),
+        height=500,
+        xaxis_rangeslider_visible=False,
+        plot_bgcolor="#1c1c1c",
+        paper_bgcolor="#1c1c1c"
+    )
     st.plotly_chart(fig, use_container_width=True)
 
-with col2:
-    # KGO AI Signal paneli
-    st.markdown(f"""
-    <div class="signal-card">
-        <h3>🤖 KGO AI SIGNAL</h3>
-        <hr>
-        <h1 style="color:{KGO_COLORS['buy'] if 'BUY' in signal else KGO_COLORS['sell'] if 'SELL' in signal else 'gray'};">
-            {signal}
-        </td>
-        <p>Signal Kuchi: {strength}</p>
-        <small>Oxirgi Narx: ${latest_data['Close']:.2f}</small>
-    </div>
-    """, unsafe_allow_html=True)
+    # Bottom Terminal (Positions)
+    st.markdown("### Toolbox (Trade History)")
+    if st.session_state.positions:
+        st.table(pd.DataFrame(st.session_state.positions))
+    else:
+        st.info("No active positions.")
 
-    # Buy/Sell o'yini (Tugmalar)
-    st.write("### Savdo qilish")
-    amount = st.number_input("Miqdorni kiriting ($):", value=100, step=10)
-    col3, col4 = st.columns(2)
-    with col3:
-        if st.button("📈 BUY", key="buy_btn"):
-            st.success(f"Xarid qilindi: {amount}$")
-    with col4:
-        if st.button("📉 SELL", key="sell_btn"):
-            st.error(f"Sotildi: {amount}$")
+with col_orders:
+    st.markdown("### New Order")
+    if st.button("🔴 SELL", type="primary", use_container_width=True):
+        st.session_state.positions.append({"Type": "SELL", "Price": current_data['Close'], "Lot": lot_size, "Time": datetime.now().strftime("%H:%M:%S")})
+        st.toast(f"Sell Order Placed at {current_data['Close']:.2f}")
+    
+    st.write("") # Spacer
+    
+    if st.button("🟢 BUY", use_container_width=True):
+        st.session_state.positions.append({"Type": "BUY", "Price": current_data['Close'], "Lot": lot_size, "Time": datetime.now().strftime("%H:%M:%S")})
+        st.toast(f"Buy Order Placed at {current_data['Close']:.2f}")
 
-    # Qo'shimcha indikator
-    st.write("---")
-    st.write(f"RSI (14): {latest_data['RSI']:.2f}")
-    if latest_data['RSI'] < 30:
-        st.warning("Narx juda past, sotib olish vaqti bo'lishi mumkin!")
-    elif latest_data['RSI'] > 70:
-        st.warning("Narx juda baland, sotish vaqti bo'lishi mumkin!")
+    st.divider()
+    st.markdown("**Account Summary**")
+    st.write(f"Equity: {st.session_state.balance}")
+    st.write(f"Margin: {lot_size * 500}")
 
-# --- [FOOTER] ---
-st.sidebar.markdown("<br><br><br><p style='text-align:center; opacity:0.5;'>KGO Trading | Junior FinTech 2026</p>", unsafe_allow_html=True)
+# Auto-refresh using Streamlit's fragment-like behavior (Simulated with button for stability)
+if st.button("🔄 REFRESH MARKET"):
+    st.rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.info("MT5 Mode: Active. Trading server: KGO-LONDON")
